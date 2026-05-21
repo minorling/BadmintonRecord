@@ -1,0 +1,17 @@
+{
+  "name": "臨打羽球戰績",
+  "short_name": "羽球記分",
+  "description": "手機現場快速記錄臨打羽球雙打比分與今日戰績。",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f5f7f3",
+  "theme_color": "#13795b",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
