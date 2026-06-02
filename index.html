@@ -40,8 +40,8 @@
           <span id="backupStatus">未設定</span>
         </div>
         <form class="backup-form" id="backupForm">
-          <input id="backupUrlInput" type="url" inputmode="url" autocomplete="off" placeholder="Apps Script Web App URL" />
-          <button type="submit">儲存</button>
+          <input id="backupUrlInput" type="url" inputmode="url" autocomplete="off" readonly aria-label="固定 Google Sheets 備份網址" />
+          <button id="saveBackupUrlButton" type="submit" disabled>固定</button>
         </form>
         <div class="backup-actions">
           <button class="text-button" id="syncAllButton" type="button">同步全部</button>

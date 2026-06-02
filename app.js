@@ -1,5 +1,7 @@
 const STORAGE_KEY = "badminton-record:v1";
 const STORAGE_VERSION = 3;
+const DEFAULT_BACKUP_URL =
+  "https://script.google.com/macros/s/AKfycbwak1uerNqCRIBpmT6OKqik2JXI3G-pCcoJAlNEZ_x-ExZqHaJaP6zmWEU2iHDjFum-3g/exec";
 let selectedPeriod = "month";
 
 const state = loadState();
@@ -13,6 +15,7 @@ const elements = {
   historyList: document.querySelector("#historyList"),
   backupForm: document.querySelector("#backupForm"),
   backupUrlInput: document.querySelector("#backupUrlInput"),
+  saveBackupUrlButton: document.querySelector("#saveBackupUrlButton"),
   backupStatus: document.querySelector("#backupStatus"),
   pendingBackupCount: document.querySelector("#pendingBackupCount"),
   backupMessage: document.querySelector("#backupMessage"),
@@ -117,6 +120,7 @@ elements.todayButton.addEventListener("click", () => {
 
 render();
 registerServiceWorker();
+autoRestoreFromSheets();
 
 function loadState() {
   const today = getTodayKey();
@@ -148,6 +152,7 @@ function loadState() {
 }
 
 function saveState() {
+  state.backup.webAppUrl = DEFAULT_BACKUP_URL;
   state.version = STORAGE_VERSION;
   pruneEmptyDays();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -182,6 +187,7 @@ function normalizeState(parsed, today) {
     backup: {
       ...createBackupSettings(),
       ...(parsed.backup && typeof parsed.backup === "object" ? parsed.backup : {}),
+      webAppUrl: DEFAULT_BACKUP_URL,
     },
     days,
   };
@@ -197,7 +203,7 @@ function createFallbackState(today) {
 }
 
 function createBackupSettings() {
-  return { webAppUrl: "", lastSyncAt: "" };
+  return { webAppUrl: DEFAULT_BACKUP_URL, lastSyncAt: "" };
 }
 
 function createEmptyDay() {
@@ -352,7 +358,9 @@ function renderHistory() {
 }
 
 function renderBackupStatus() {
-  elements.backupUrlInput.value = state.backup.webAppUrl || "";
+  state.backup.webAppUrl = DEFAULT_BACKUP_URL;
+  elements.backupUrlInput.value = DEFAULT_BACKUP_URL;
+  elements.saveBackupUrlButton.disabled = true;
   const pendingCount = getPendingBackupMatches().length;
   const localMatchCount = getAllBackupMatches().length;
   elements.pendingBackupCount.textContent = `${pendingCount} 筆待同步`;
@@ -372,19 +380,10 @@ function renderBackupStatus() {
 }
 
 function saveBackupSettings() {
-  const webAppUrl = elements.backupUrlInput.value.trim();
-
-  if (webAppUrl && !webAppUrl.startsWith("https://script.google.com/")) {
-    elements.backupMessage.textContent = "請貼上 Apps Script Web App URL。";
-    return;
-  }
-
-  state.backup.webAppUrl = webAppUrl;
+  state.backup.webAppUrl = DEFAULT_BACKUP_URL;
   saveState();
   renderBackupStatus();
-  elements.backupMessage.textContent = webAppUrl ? "備份設定已儲存。" : "備份設定已清空。";
-
-  if (webAppUrl) syncAllPendingMatches();
+  elements.backupMessage.textContent = "備份網址已固定，無需手動設定。";
 }
 
 function renderPlayers() {
@@ -793,6 +792,14 @@ async function restoreFromSheets() {
   } finally {
     elements.restoreFromSheetsButton.disabled = !state.backup.webAppUrl;
   }
+}
+
+function autoRestoreFromSheets() {
+  window.setTimeout(() => {
+    if (!state.backup.webAppUrl) return;
+    elements.backupMessage.textContent = "正在自動載入 Google Sheets...";
+    restoreFromSheets();
+  }, 300);
 }
 
 function mergeCloudMatches(matches) {

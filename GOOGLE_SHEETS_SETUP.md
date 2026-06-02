@@ -32,11 +32,17 @@ Who has access: Anyone
 
 ## 4. 在羽球記分 App 裡設定
 
-打開羽球記分 App，在 `Google Sheets 備份` 區塊貼上 Web app URL，按 `儲存`。
+羽球記分 App 目前已固定使用這個 Web app URL，欄位不可修改：
+
+```text
+https://script.google.com/macros/s/AKfycbwak1uerNqCRIBpmT6OKqik2JXI3G-pCcoJAlNEZ_x-ExZqHaJaP6zmWEU2iHDjFum-3g/exec
+```
+
+每次打開網頁後，App 會自動從 Google Sheets 載入資料。
 
 之後每次新增比賽會自動送到 Google Sheet。如果網路失敗或還沒設定 URL，資料仍會留在手機，可以之後按 `同步全部` 補送。
 
-如果換手機、Safari 資料被清掉，或想把 Google Sheet 裡的舊資料拉回 App，按 `從 Sheets 載入`。
+如果換手機、Safari 資料被清掉，App 開啟時會自動載入。也可以手動按 `從 Sheets 載入`。
 
 `檢查 Sheets` 可以用來排查同步狀態。它會顯示 Google Sheet 目前共有幾列，以及有幾場可載入。
 
