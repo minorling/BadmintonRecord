@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#13795b" />
+    <title>臨打羽球戰績</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Badminton Record</p>
+          <h1>臨打記分</h1>
+        </div>
+        <button class="icon-button" id="resetDayButton" type="button" aria-label="清空目前日期資料">重置</button>
+      </header>
+
+      <section class="date-switcher" aria-label="日期切換">
+        <button class="date-nav" id="previousDayButton" type="button" aria-label="前一天">‹</button>
+        <input id="dateInput" type="date" aria-label="選擇紀錄日期" />
+        <button class="date-nav" id="nextDayButton" type="button" aria-label="後一天">›</button>
+        <button class="today-button" id="todayButton" type="button">今天</button>
+      </section>
+
+      <section class="panel history-panel">
+        <div class="panel-title">
+          <h2>歷史紀錄</h2>
+          <span id="historyCount">0 天</span>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>當日球員</h2>
+          <span id="playerCount">0 人</span>
+        </div>
+        <form class="add-player" id="playerForm">
+          <input id="playerNameInput" type="text" inputmode="text" autocomplete="off" placeholder="輸入球員名稱" />
+          <button type="submit">新增</button>
+        </form>
+        <div class="player-list" id="playerList"></div>
+      </section>
+
+      <section class="panel score-panel">
+        <div class="panel-title">
+          <h2>新增比賽</h2>
+          <span id="matchCount">第 1 場</span>
+        </div>
+
+        <form id="matchForm">
+          <div class="team-grid">
+            <div class="team-card team-a">
+              <div class="team-header">
+                <strong>A 隊</strong>
+                <input id="scoreA" type="number" inputmode="numeric" min="0" max="99" placeholder="分數" />
+              </div>
+              <select id="teamAPlayer1" aria-label="A 隊球員 1"></select>
+              <select id="teamAPlayer2" aria-label="A 隊球員 2"></select>
+            </div>
+
+            <div class="versus">VS</div>
+
+            <div class="team-card team-b">
+              <div class="team-header">
+                <strong>B 隊</strong>
+                <input id="scoreB" type="number" inputmode="numeric" min="0" max="99" placeholder="分數" />
+              </div>
+              <select id="teamBPlayer1" aria-label="B 隊球員 1"></select>
+              <select id="teamBPlayer2" aria-label="B 隊球員 2"></select>
+            </div>
+          </div>
+
+          <div class="quick-score">
+            <button type="button" data-score="21-0">21:0</button>
+            <button type="button" data-score="21-15">21:15</button>
+            <button type="button" data-score="21-18">21:18</button>
+            <button type="button" data-score="21-19">21:19</button>
+            <button type="button" data-score="21-20">21:20</button>
+            <button type="button" data-score="20-21">20:21</button>
+          </div>
+
+          <button class="primary-action" type="submit">儲存下一場</button>
+          <p class="form-message" id="formMessage" role="status"></p>
+        </form>
+      </section>
+
+      <section class="tabs" aria-label="資料分頁">
+        <button class="tab active" type="button" data-tab="matches">當日場次</button>
+        <button class="tab" type="button" data-tab="standings">當日戰績</button>
+        <button class="tab" type="button" data-tab="period">期間排行</button>
+        <button class="tab" type="button" data-tab="partners">搭檔排行</button>
+      </section>
+
+      <section class="panel tab-panel active" id="matchesPanel">
+        <div class="panel-title">
+          <h2>當日場次</h2>
+          <button class="text-button" id="exportButton" type="button">匯出 CSV</button>
+        </div>
+        <div class="empty-state" id="emptyMatches">還沒有比賽紀錄。</div>
+        <ol class="match-list" id="matchList"></ol>
+      </section>
+
+      <section class="panel tab-panel" id="standingsPanel">
+        <div class="panel-title">
+          <h2>當日戰績</h2>
+          <span>依勝率排序</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>球員</th>
+                <th>場</th>
+                <th>勝</th>
+                <th>敗</th>
+                <th>勝率</th>
+                <th>分差</th>
+              </tr>
+            </thead>
+            <tbody id="standingsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel tab-panel" id="partnersPanel">
+        <div class="panel-title">
+          <h2>搭檔排行</h2>
+          <span>至少 1 場</span>
+        </div>
+        <div class="partner-list" id="partnerList"></div>
+      </section>
+
+      <section class="panel tab-panel" id="periodPanel">
+        <div class="panel-title">
+          <h2>期間排行</h2>
+          <span id="periodLabel">本月</span>
+        </div>
+        <div class="period-controls" aria-label="排行期間">
+          <button class="period-button active" type="button" data-period="month">月</button>
+          <button class="period-button" type="button" data-period="quarter">季</button>
+          <button class="period-button" type="button" data-period="year">年</button>
+        </div>
+        <div class="empty-state" id="emptyPeriodRankings">這個期間還沒有比賽紀錄。</div>
+        <div class="table-wrap" id="periodTableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>名次</th>
+                <th>球員</th>
+                <th>場</th>
+                <th>勝</th>
+                <th>敗</th>
+                <th>勝率</th>
+                <th>分差</th>
+              </tr>
+            </thead>
+            <tbody id="periodRankingsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <template id="playerChipTemplate">
+      <button class="player-chip" type="button"></button>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
