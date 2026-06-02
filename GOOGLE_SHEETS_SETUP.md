@@ -36,6 +36,8 @@ Who has access: Anyone
 
 之後每次新增比賽會自動送到 Google Sheet。如果網路失敗或還沒設定 URL，資料仍會留在手機，可以之後按 `同步全部` 補送。
 
+如果換手機、Safari 資料被清掉，或想把 Google Sheet 裡的舊資料拉回 App，按 `從 Sheets 載入`。
+
 ## 5. 更新 Apps Script 時
 
 如果之後修改 `google-apps-script.gs`，需要到 Apps Script：
@@ -43,3 +45,5 @@ Who has access: Anyone
 `Deploy` -> `Manage deployments` -> 編輯部署 -> 選 `New version` -> `Deploy`
 
 同一個 Web app URL 可以沿用。
+
+這一步很重要：只修改 Apps Script 程式碼但沒有部署新版本時，手機 App 還是會連到舊版程式。

@@ -17,6 +17,7 @@ const elements = {
   pendingBackupCount: document.querySelector("#pendingBackupCount"),
   backupMessage: document.querySelector("#backupMessage"),
   syncAllButton: document.querySelector("#syncAllButton"),
+  restoreFromSheetsButton: document.querySelector("#restoreFromSheetsButton"),
   dateInput: document.querySelector("#dateInput"),
   previousDayButton: document.querySelector("#previousDayButton"),
   nextDayButton: document.querySelector("#nextDayButton"),
@@ -80,6 +81,10 @@ elements.backupForm.addEventListener("submit", (event) => {
 
 elements.syncAllButton.addEventListener("click", () => {
   syncAllPendingMatches();
+});
+
+elements.restoreFromSheetsButton.addEventListener("click", () => {
+  restoreFromSheets();
 });
 
 elements.resetDayButton.addEventListener("click", () => {
@@ -349,10 +354,12 @@ function renderBackupStatus() {
   if (!state.backup.webAppUrl) {
     elements.backupStatus.textContent = "未設定";
     elements.syncAllButton.disabled = true;
+    elements.restoreFromSheetsButton.disabled = true;
     return;
   }
 
   elements.syncAllButton.disabled = pendingCount === 0;
+  elements.restoreFromSheetsButton.disabled = false;
   elements.backupStatus.textContent = pendingCount === 0 ? "已同步" : "待同步";
 }
 
@@ -749,6 +756,123 @@ async function syncDeletedMatch(date, match) {
   } catch {
     elements.backupMessage.textContent = "本機已刪除；雲端刪除狀態稍後可手動修正。";
   }
+}
+
+async function restoreFromSheets() {
+  if (!state.backup.webAppUrl) {
+    elements.backupMessage.textContent = "請先設定 Web App URL。";
+    return;
+  }
+
+  elements.restoreFromSheetsButton.disabled = true;
+  elements.backupMessage.textContent = "正在從 Google Sheets 載入...";
+
+  try {
+    const response = await jsonpRequest(`${state.backup.webAppUrl}?action=list`);
+    if (!response.ok || !Array.isArray(response.matches)) {
+      throw new Error("Invalid Google Sheets response");
+    }
+
+    const importedCount = mergeCloudMatches(response.matches);
+    saveState();
+    render();
+    elements.backupMessage.textContent = `已從 Sheets 載入 ${importedCount} 場。`;
+  } catch (error) {
+    elements.backupMessage.textContent = "從 Sheets 載入失敗，請確認 Apps Script 已重新部署。";
+  } finally {
+    elements.restoreFromSheetsButton.disabled = !state.backup.webAppUrl;
+  }
+}
+
+function mergeCloudMatches(matches) {
+  let importedCount = 0;
+
+  matches.forEach((record) => {
+    if (!record.matchId || !isDateKey(record.date)) return;
+    const day = state.days[record.date] || createEmptyDay();
+    state.days[record.date] = day;
+
+    const existing = day.matches.find((match) => match.id === record.matchId);
+    const teamA = normalizeCloudTeam(day, record.teamAIds, record.teamAPlayers);
+    const teamB = normalizeCloudTeam(day, record.teamBIds, record.teamBPlayers);
+    const restoredMatch = {
+      id: record.matchId,
+      createdAt: record.createdAt || new Date().toISOString(),
+      teamA,
+      teamB,
+      scoreA: Number(record.scoreA),
+      scoreB: Number(record.scoreB),
+      backupStatus: "synced",
+      backupSyncedAt: new Date().toISOString(),
+      backupError: "",
+    };
+
+    if (!Number.isFinite(restoredMatch.scoreA) || !Number.isFinite(restoredMatch.scoreB)) return;
+
+    if (existing) {
+      Object.assign(existing, restoredMatch);
+    } else {
+      day.matches.push(restoredMatch);
+      importedCount += 1;
+    }
+  });
+
+  return importedCount;
+}
+
+function normalizeCloudTeam(day, ids = [], names = []) {
+  return names.slice(0, 2).map((name, index) => {
+    const fallbackId = ids[index] || `cloud-${slugify(name)}-${index + 1}`;
+    return ensurePlayer(day, fallbackId, name || "未知球員");
+  });
+}
+
+function ensurePlayer(day, playerId, name) {
+  const existingById = day.players.find((player) => player.id === playerId);
+  if (existingById) {
+    existingById.name = name;
+    return existingById.id;
+  }
+
+  const existingByName = day.players.find((player) => player.name.trim().toLowerCase() === name.trim().toLowerCase());
+  if (existingByName) return existingByName.id;
+
+  day.players.push({ id: playerId, name });
+  return playerId;
+}
+
+function jsonpRequest(url) {
+  return new Promise((resolve, reject) => {
+    const callbackName = `badmintonBackupCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement("script");
+    const separator = url.includes("?") ? "&" : "?";
+
+    window[callbackName] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("JSONP request failed"));
+    };
+
+    script.src = `${url}${separator}callback=${callbackName}&_=${Date.now()}`;
+    document.body.append(script);
+
+    function cleanup() {
+      delete window[callbackName];
+      script.remove();
+    }
+  });
+}
+
+function slugify(value) {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 async function sendBackupPayload(payload) {

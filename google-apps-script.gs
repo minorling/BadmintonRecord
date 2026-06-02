@@ -17,7 +17,15 @@ const HEADERS = [
   "Deleted At",
 ];
 
-function doGet() {
+function doGet(e) {
+  if (e.parameter.action === "list") {
+    const payload = { ok: true, matches: listMatches_() };
+    if (e.parameter.callback) {
+      return javascript_(`${e.parameter.callback}(${JSON.stringify(payload)});`);
+    }
+    return json_(payload);
+  }
+
   return json_({ ok: true, app: "Badminton Record Backup" });
 }
 
@@ -73,6 +81,29 @@ function markDeleted_(payload) {
   sheet.getRange(rowNumber, HEADERS.length).setValue(new Date());
 }
 
+function listMatches_() {
+  const sheet = getSheet_();
+  if (sheet.getLastRow() < 2) return [];
+
+  return sheet
+    .getRange(2, 1, sheet.getLastRow() - 1, HEADERS.length)
+    .getValues()
+    .filter((row) => !row[14])
+    .map((row) => ({
+      matchId: row[2],
+      date: formatDateKey_(row[3]),
+      createdAt: formatDateTime_(row[4]),
+      teamAPlayers: [row[5], row[6]],
+      teamBPlayers: [row[7], row[8]],
+      scoreA: Number(row[9]),
+      scoreB: Number(row[10]),
+      winner: row[11],
+      teamAIds: splitIds_(row[12]),
+      teamBIds: splitIds_(row[13]),
+    }))
+    .filter((match) => match.matchId && match.date);
+}
+
 function findMatchRow_(sheet, matchId) {
   if (!matchId || sheet.getLastRow() < 2) return null;
 
@@ -98,4 +129,30 @@ function getSheet_() {
 
 function json_(value) {
   return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function javascript_(source) {
+  return ContentService.createTextOutput(source).setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+
+function splitIds_(value) {
+  if (!value) return [];
+  return String(value)
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
+function formatDateKey_(value) {
+  if (value instanceof Date) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  }
+  return String(value || "");
+}
+
+function formatDateTime_(value) {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  return String(value || "");
 }
