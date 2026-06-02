@@ -164,7 +164,7 @@ h2 {
 
 .backup-actions {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   align-items: center;
   gap: 10px;
   margin-top: 10px;
@@ -176,6 +176,11 @@ h2 {
   font-size: 13px;
   font-weight: 800;
   text-align: right;
+}
+
+.backup-actions .text-button {
+  padding: 0 8px;
+  font-size: 13px;
 }
 
 .backup-message {

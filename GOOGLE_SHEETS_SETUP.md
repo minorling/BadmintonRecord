@@ -38,6 +38,10 @@ Who has access: Anyone
 
 如果換手機、Safari 資料被清掉，或想把 Google Sheet 裡的舊資料拉回 App，按 `從 Sheets 載入`。
 
+`檢查 Sheets` 可以用來排查同步狀態。它會顯示 Google Sheet 目前共有幾列，以及有幾場可載入。
+
+如果之前用舊版 App 顯示已備份，但 Google Sheet 裡沒有資料，請在原本有本機紀錄的手機上按 `同步全部`。新版 `同步全部` 會重新送出所有本機比賽，而不是只送待同步紀錄。
+
 ## 5. 更新 Apps Script 時
 
 如果之後修改 `google-apps-script.gs`，需要到 Apps Script：
@@ -47,3 +51,12 @@ Who has access: Anyone
 同一個 Web app URL 可以沿用。
 
 這一步很重要：只修改 Apps Script 程式碼但沒有部署新版本時，手機 App 還是會連到舊版程式。
+
+## 6. 排查同步問題
+
+如果另一台裝置按 `從 Sheets 載入` 顯示 0 場：
+
+1. 先打開 Google Sheet，看 `Matches` 工作表是否真的有比賽列。
+2. 在 App 按 `檢查 Sheets`，確認 `可載入` 的場數是否大於 0。
+3. 如果 Google Sheet 沒資料，回到有本機紀錄的手機，按 `同步全部`。
+4. 如果 Google Sheet 有資料但 App 顯示 0，通常是 Apps Script 沒有部署新版，請重新執行 `New version` -> `Deploy`。

@@ -18,6 +18,7 @@ const elements = {
   backupMessage: document.querySelector("#backupMessage"),
   syncAllButton: document.querySelector("#syncAllButton"),
   restoreFromSheetsButton: document.querySelector("#restoreFromSheetsButton"),
+  checkSheetsButton: document.querySelector("#checkSheetsButton"),
   dateInput: document.querySelector("#dateInput"),
   previousDayButton: document.querySelector("#previousDayButton"),
   nextDayButton: document.querySelector("#nextDayButton"),
@@ -85,6 +86,10 @@ elements.syncAllButton.addEventListener("click", () => {
 
 elements.restoreFromSheetsButton.addEventListener("click", () => {
   restoreFromSheets();
+});
+
+elements.checkSheetsButton.addEventListener("click", () => {
+  checkSheetsStatus();
 });
 
 elements.resetDayButton.addEventListener("click", () => {
@@ -349,17 +354,20 @@ function renderHistory() {
 function renderBackupStatus() {
   elements.backupUrlInput.value = state.backup.webAppUrl || "";
   const pendingCount = getPendingBackupMatches().length;
+  const localMatchCount = getAllBackupMatches().length;
   elements.pendingBackupCount.textContent = `${pendingCount} 筆待同步`;
 
   if (!state.backup.webAppUrl) {
     elements.backupStatus.textContent = "未設定";
     elements.syncAllButton.disabled = true;
     elements.restoreFromSheetsButton.disabled = true;
+    elements.checkSheetsButton.disabled = true;
     return;
   }
 
-  elements.syncAllButton.disabled = pendingCount === 0;
+  elements.syncAllButton.disabled = localMatchCount === 0;
   elements.restoreFromSheetsButton.disabled = false;
+  elements.checkSheetsButton.disabled = false;
   elements.backupStatus.textContent = pendingCount === 0 ? "已同步" : "待同步";
 }
 
@@ -659,17 +667,20 @@ function formatPeriodLabel(period) {
 
 function getPendingBackupMatches() {
   if (!state.backup.webAppUrl) return [];
-  const pending = [];
+  return getAllBackupMatches().filter((item) => item.match.backupStatus !== "synced");
+}
+
+function getAllBackupMatches() {
+  if (!state.backup.webAppUrl) return [];
+  const matches = [];
 
   Object.entries(state.days).forEach(([date, day]) => {
     day.matches.forEach((match) => {
-      if (match.backupStatus !== "synced") {
-        pending.push({ date, match });
-      }
+      matches.push({ date, match });
     });
   });
 
-  return pending;
+  return matches;
 }
 
 function syncLatestMatch() {
@@ -685,24 +696,24 @@ async function syncAllPendingMatches() {
     return;
   }
 
-  const pending = getPendingBackupMatches();
-  if (pending.length === 0) {
-    elements.backupMessage.textContent = "目前沒有待同步紀錄。";
+  const matches = getAllBackupMatches();
+  if (matches.length === 0) {
+    elements.backupMessage.textContent = "目前沒有本機比賽紀錄。";
     renderBackupStatus();
     return;
   }
 
   elements.syncAllButton.disabled = true;
-  elements.backupMessage.textContent = `同步中：0 / ${pending.length}`;
+  elements.backupMessage.textContent = `同步中：0 / ${matches.length}`;
 
   let syncedCount = 0;
-  for (const item of pending) {
+  for (const item of matches) {
     const ok = await syncMatch(item.date, item.match.id, { silent: true });
     if (ok) syncedCount += 1;
-    elements.backupMessage.textContent = `同步中：${syncedCount} / ${pending.length}`;
+    elements.backupMessage.textContent = `同步中：${syncedCount} / ${matches.length}`;
   }
 
-  elements.backupMessage.textContent = `同步完成：${syncedCount} / ${pending.length}`;
+  elements.backupMessage.textContent = `同步完成：${syncedCount} / ${matches.length}`;
   render();
 }
 
@@ -773,10 +784,10 @@ async function restoreFromSheets() {
       throw new Error("Invalid Google Sheets response");
     }
 
-    const importedCount = mergeCloudMatches(response.matches);
+    const result = mergeCloudMatches(response.matches);
     saveState();
     render();
-    elements.backupMessage.textContent = `已從 Sheets 載入 ${importedCount} 場。`;
+    elements.backupMessage.textContent = `雲端 ${response.matches.length} 場，新增 ${result.imported} 場，更新 ${result.updated} 場。`;
   } catch (error) {
     elements.backupMessage.textContent = "從 Sheets 載入失敗，請確認 Apps Script 已重新部署。";
   } finally {
@@ -785,7 +796,7 @@ async function restoreFromSheets() {
 }
 
 function mergeCloudMatches(matches) {
-  let importedCount = 0;
+  const result = { imported: 0, updated: 0 };
 
   matches.forEach((record) => {
     if (!record.matchId || !isDateKey(record.date)) return;
@@ -811,13 +822,34 @@ function mergeCloudMatches(matches) {
 
     if (existing) {
       Object.assign(existing, restoredMatch);
+      result.updated += 1;
     } else {
       day.matches.push(restoredMatch);
-      importedCount += 1;
+      result.imported += 1;
     }
   });
 
-  return importedCount;
+  return result;
+}
+
+async function checkSheetsStatus() {
+  if (!state.backup.webAppUrl) {
+    elements.backupMessage.textContent = "請先設定 Web App URL。";
+    return;
+  }
+
+  elements.checkSheetsButton.disabled = true;
+  elements.backupMessage.textContent = "正在檢查 Google Sheets...";
+
+  try {
+    const response = await jsonpRequest(`${state.backup.webAppUrl}?action=status`);
+    if (!response.ok || !response.status) throw new Error("Invalid status response");
+    elements.backupMessage.textContent = `Sheets 共有 ${response.status.rowCount} 列，可載入 ${response.status.activeMatchCount} 場。`;
+  } catch {
+    elements.backupMessage.textContent = "檢查失敗，請確認 Web App URL 和 Apps Script 部署版本。";
+  } finally {
+    elements.checkSheetsButton.disabled = !state.backup.webAppUrl;
+  }
 }
 
 function normalizeCloudTeam(day, ids = [], names = []) {
@@ -846,6 +878,10 @@ function jsonpRequest(url) {
     const callbackName = `badmintonBackupCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const script = document.createElement("script");
     const separator = url.includes("?") ? "&" : "?";
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("JSONP request timed out"));
+    }, 15000);
 
     window[callbackName] = (data) => {
       cleanup();
@@ -861,6 +897,7 @@ function jsonpRequest(url) {
     document.body.append(script);
 
     function cleanup() {
+      window.clearTimeout(timeoutId);
       delete window[callbackName];
       script.remove();
     }
@@ -876,12 +913,11 @@ function slugify(value) {
 }
 
 async function sendBackupPayload(payload) {
-  await fetch(state.backup.webAppUrl, {
-    method: "POST",
-    mode: "no-cors",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload),
-  });
+  const action = payload.type === "delete_match" ? "delete" : "save";
+  const response = await jsonpRequest(
+    `${state.backup.webAppUrl}?action=${action}&payload=${encodeURIComponent(JSON.stringify(payload))}`,
+  );
+  if (!response.ok) throw new Error(response.error || "Google Sheets backup failed");
 }
 
 function createMatchBackupPayload(date, day, match) {

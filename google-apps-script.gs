@@ -18,19 +18,34 @@ const HEADERS = [
 ];
 
 function doGet(e) {
-  if (e.parameter.action === "list") {
-    const payload = { ok: true, matches: listMatches_() };
-    if (e.parameter.callback) {
-      return javascript_(`${e.parameter.callback}(${JSON.stringify(payload)});`);
-    }
-    return json_(payload);
+  e = e || { parameter: {} };
+
+  if (e.parameter.action === "save") {
+    const payload = parsePayload_(e.parameter.payload);
+    if (payload.type !== "match") return respond_(e, { ok: false, error: "Unsupported payload type" });
+    upsertMatch_(payload);
+    return respond_(e, { ok: true, status: getStatus_() });
   }
 
-  return json_({ ok: true, app: "Badminton Record Backup" });
+  if (e.parameter.action === "delete") {
+    const payload = parsePayload_(e.parameter.payload);
+    markDeleted_(payload);
+    return respond_(e, { ok: true, status: getStatus_() });
+  }
+
+  if (e.parameter.action === "list") {
+    return respond_(e, { ok: true, matches: listMatches_(), status: getStatus_() });
+  }
+
+  if (e.parameter.action === "status") {
+    return respond_(e, { ok: true, status: getStatus_() });
+  }
+
+  return respond_(e, { ok: true, app: "Badminton Record Backup", status: getStatus_() });
 }
 
 function doPost(e) {
-  const payload = JSON.parse(e.postData.contents || "{}");
+  const payload = parsePayload_(e.postData.contents);
 
   if (payload.type === "delete_match") {
     markDeleted_(payload);
@@ -79,6 +94,18 @@ function markDeleted_(payload) {
   const rowNumber = findMatchRow_(sheet, payload.matchId);
   if (!rowNumber) return;
   sheet.getRange(rowNumber, HEADERS.length).setValue(new Date());
+}
+
+function getStatus_() {
+  const sheet = getSheet_();
+  const rowCount = Math.max(sheet.getLastRow() - 1, 0);
+  return {
+    sheetName: sheet.getName(),
+    rowCount,
+    activeMatchCount: listMatches_().length,
+    lastRow: sheet.getLastRow(),
+    lastUpdatedAt: new Date().toISOString(),
+  };
 }
 
 function listMatches_() {
@@ -133,6 +160,17 @@ function json_(value) {
 
 function javascript_(source) {
   return ContentService.createTextOutput(source).setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+
+function respond_(e, value) {
+  if (e.parameter.callback) {
+    return javascript_(`${e.parameter.callback}(${JSON.stringify(value)});`);
+  }
+  return json_(value);
+}
+
+function parsePayload_(value) {
+  return JSON.parse(value || "{}");
 }
 
 function splitIds_(value) {
