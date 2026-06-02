@@ -1,5 +1,5 @@
 const STORAGE_KEY = "badminton-record:v1";
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 let selectedPeriod = "month";
 
 const state = loadState();
@@ -11,6 +11,12 @@ const elements = {
   playerCount: document.querySelector("#playerCount"),
   historyCount: document.querySelector("#historyCount"),
   historyList: document.querySelector("#historyList"),
+  backupForm: document.querySelector("#backupForm"),
+  backupUrlInput: document.querySelector("#backupUrlInput"),
+  backupStatus: document.querySelector("#backupStatus"),
+  pendingBackupCount: document.querySelector("#pendingBackupCount"),
+  backupMessage: document.querySelector("#backupMessage"),
+  syncAllButton: document.querySelector("#syncAllButton"),
   dateInput: document.querySelector("#dateInput"),
   previousDayButton: document.querySelector("#previousDayButton"),
   nextDayButton: document.querySelector("#nextDayButton"),
@@ -67,6 +73,15 @@ document.querySelectorAll("[data-period]").forEach((button) => {
 
 elements.exportButton.addEventListener("click", exportCsv);
 
+elements.backupForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  saveBackupSettings();
+});
+
+elements.syncAllButton.addEventListener("click", () => {
+  syncAllPendingMatches();
+});
+
 elements.resetDayButton.addEventListener("click", () => {
   if (!confirm(`確定要清空 ${state.selectedDate} 的球員與比賽紀錄嗎？`)) return;
   state.days[state.selectedDate] = createEmptyDay();
@@ -95,7 +110,7 @@ registerServiceWorker();
 
 function loadState() {
   const today = getTodayKey();
-  const fallback = { version: STORAGE_VERSION, selectedDate: today, days: { [today]: createEmptyDay() } };
+  const fallback = createFallbackState(today);
 
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -151,7 +166,28 @@ function normalizeState(parsed, today) {
   const selectedDate = isDateKey(parsed.selectedDate) ? parsed.selectedDate : today;
   if (!days[selectedDate]) days[selectedDate] = createEmptyDay();
 
-  return { version: STORAGE_VERSION, selectedDate, days };
+  return {
+    version: STORAGE_VERSION,
+    selectedDate,
+    backup: {
+      ...createBackupSettings(),
+      ...(parsed.backup && typeof parsed.backup === "object" ? parsed.backup : {}),
+    },
+    days,
+  };
+}
+
+function createFallbackState(today) {
+  return {
+    version: STORAGE_VERSION,
+    selectedDate: today,
+    backup: createBackupSettings(),
+    days: { [today]: createEmptyDay() },
+  };
+}
+
+function createBackupSettings() {
+  return { webAppUrl: "", lastSyncAt: "" };
 }
 
 function createEmptyDay() {
@@ -248,6 +284,8 @@ function addMatch() {
     teamB,
     scoreA,
     scoreB,
+    backupStatus: "pending",
+    backupSyncedAt: "",
   });
 
   elements.scoreA.value = "";
@@ -255,18 +293,22 @@ function addMatch() {
   saveState();
   render();
   setActiveTab("matches");
+  syncLatestMatch();
 }
 
 function deleteMatch(matchId) {
   const day = currentDay();
+  const match = day.matches.find((item) => item.id === matchId);
   day.matches = day.matches.filter((match) => match.id !== matchId);
   saveState();
   render();
+  if (match) syncDeletedMatch(state.selectedDate, match);
 }
 
 function render() {
   renderDateControls();
   renderHistory();
+  renderBackupStatus();
   renderPlayers();
   renderPlayerOptions();
   renderMatches();
@@ -297,6 +339,37 @@ function renderHistory() {
     button.addEventListener("click", () => selectDate(date));
     elements.historyList.append(button);
   });
+}
+
+function renderBackupStatus() {
+  elements.backupUrlInput.value = state.backup.webAppUrl || "";
+  const pendingCount = getPendingBackupMatches().length;
+  elements.pendingBackupCount.textContent = `${pendingCount} 筆待同步`;
+
+  if (!state.backup.webAppUrl) {
+    elements.backupStatus.textContent = "未設定";
+    elements.syncAllButton.disabled = true;
+    return;
+  }
+
+  elements.syncAllButton.disabled = pendingCount === 0;
+  elements.backupStatus.textContent = pendingCount === 0 ? "已同步" : "待同步";
+}
+
+function saveBackupSettings() {
+  const webAppUrl = elements.backupUrlInput.value.trim();
+
+  if (webAppUrl && !webAppUrl.startsWith("https://script.google.com/")) {
+    elements.backupMessage.textContent = "請貼上 Apps Script Web App URL。";
+    return;
+  }
+
+  state.backup.webAppUrl = webAppUrl;
+  saveState();
+  renderBackupStatus();
+  elements.backupMessage.textContent = webAppUrl ? "備份設定已儲存。" : "備份設定已清空。";
+
+  if (webAppUrl) syncAllPendingMatches();
 }
 
 function renderPlayers() {
@@ -365,7 +438,10 @@ function renderMatches() {
         <div class="match-team right ${teamAWins ? "" : "winner"}">${escapeHtml(teamName(match.teamB))}</div>
       </div>
       <div class="match-actions">
-        <span>第 ${matchNumber} 場</span>
+        <div class="match-meta">
+          <span>第 ${matchNumber} 場</span>
+          <span class="backup-badge ${backupBadgeClass(match)}">${backupBadgeText(match)}</span>
+        </div>
         <button class="delete-match" type="button">刪除</button>
       </div>
     `;
@@ -572,6 +648,147 @@ function formatPeriodLabel(period) {
   if (period === "year") return `${selected.year} 年度`;
   if (period === "quarter") return `${selected.year} 年 Q${getQuarter(selected.month)}`;
   return `${selected.year} 年 ${selected.month} 月`;
+}
+
+function getPendingBackupMatches() {
+  if (!state.backup.webAppUrl) return [];
+  const pending = [];
+
+  Object.entries(state.days).forEach(([date, day]) => {
+    day.matches.forEach((match) => {
+      if (match.backupStatus !== "synced") {
+        pending.push({ date, match });
+      }
+    });
+  });
+
+  return pending;
+}
+
+function syncLatestMatch() {
+  const day = currentDay();
+  const match = day.matches[day.matches.length - 1];
+  if (!match) return;
+  syncMatch(state.selectedDate, match.id);
+}
+
+async function syncAllPendingMatches() {
+  if (!state.backup.webAppUrl) {
+    elements.backupMessage.textContent = "請先設定 Web App URL。";
+    return;
+  }
+
+  const pending = getPendingBackupMatches();
+  if (pending.length === 0) {
+    elements.backupMessage.textContent = "目前沒有待同步紀錄。";
+    renderBackupStatus();
+    return;
+  }
+
+  elements.syncAllButton.disabled = true;
+  elements.backupMessage.textContent = `同步中：0 / ${pending.length}`;
+
+  let syncedCount = 0;
+  for (const item of pending) {
+    const ok = await syncMatch(item.date, item.match.id, { silent: true });
+    if (ok) syncedCount += 1;
+    elements.backupMessage.textContent = `同步中：${syncedCount} / ${pending.length}`;
+  }
+
+  elements.backupMessage.textContent = `同步完成：${syncedCount} / ${pending.length}`;
+  render();
+}
+
+async function syncMatch(date, matchId, options = {}) {
+  if (!state.backup.webAppUrl) return false;
+
+  const day = state.days[date];
+  const match = day?.matches.find((item) => item.id === matchId);
+  if (!day || !match) return false;
+
+  match.backupStatus = "pending";
+  saveState();
+  if (!options.silent) render();
+
+  try {
+    await sendBackupPayload(createMatchBackupPayload(date, day, match));
+    match.backupStatus = "synced";
+    match.backupSyncedAt = new Date().toISOString();
+    match.backupError = "";
+    state.backup.lastSyncAt = match.backupSyncedAt;
+    saveState();
+    if (!options.silent) {
+      elements.backupMessage.textContent = "已備份到 Google Sheets。";
+      render();
+    }
+    return true;
+  } catch (error) {
+    match.backupStatus = "failed";
+    match.backupError = error.message;
+    saveState();
+    if (!options.silent) {
+      elements.backupMessage.textContent = "備份失敗，稍後可按同步全部。";
+      render();
+    }
+    return false;
+  }
+}
+
+async function syncDeletedMatch(date, match) {
+  if (!state.backup.webAppUrl || match.backupStatus !== "synced") return;
+
+  try {
+    await sendBackupPayload({
+      type: "delete_match",
+      source: "badminton-record",
+      date,
+      matchId: match.id,
+      deletedAt: new Date().toISOString(),
+    });
+    elements.backupMessage.textContent = "已同步刪除狀態。";
+  } catch {
+    elements.backupMessage.textContent = "本機已刪除；雲端刪除狀態稍後可手動修正。";
+  }
+}
+
+async function sendBackupPayload(payload) {
+  await fetch(state.backup.webAppUrl, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload),
+  });
+}
+
+function createMatchBackupPayload(date, day, match) {
+  return {
+    type: "match",
+    source: "badminton-record",
+    date,
+    matchId: match.id,
+    createdAt: match.createdAt,
+    teamAIds: match.teamA,
+    teamBIds: match.teamB,
+    teamAPlayers: match.teamA.map((playerId) => playerNameFromDay(day, playerId)),
+    teamBPlayers: match.teamB.map((playerId) => playerNameFromDay(day, playerId)),
+    scoreA: match.scoreA,
+    scoreB: match.scoreB,
+    winner: match.scoreA > match.scoreB ? "A隊" : "B隊",
+  };
+}
+
+function backupBadgeClass(match) {
+  if (!state.backup.webAppUrl) return "";
+  if (match.backupStatus === "synced") return "synced";
+  if (match.backupStatus === "failed") return "failed";
+  return "";
+}
+
+function backupBadgeText(match) {
+  if (!state.backup.webAppUrl) return "未備份";
+  if (match.backupStatus === "synced") return "已備份";
+  if (match.backupStatus === "failed") return "失敗";
+  return "待備份";
 }
 
 function getPartnerStats() {

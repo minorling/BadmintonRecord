@@ -34,6 +34,22 @@
         <div class="history-list" id="historyList"></div>
       </section>
 
+      <section class="panel backup-panel">
+        <div class="panel-title">
+          <h2>Google Sheets 備份</h2>
+          <span id="backupStatus">未設定</span>
+        </div>
+        <form class="backup-form" id="backupForm">
+          <input id="backupUrlInput" type="url" inputmode="url" autocomplete="off" placeholder="Apps Script Web App URL" />
+          <button type="submit">儲存</button>
+        </form>
+        <div class="backup-actions">
+          <button class="text-button" id="syncAllButton" type="button">同步全部</button>
+          <span id="pendingBackupCount">0 筆待同步</span>
+        </div>
+        <p class="backup-message" id="backupMessage" role="status"></p>
+      </section>
+
       <section class="panel">
         <div class="panel-title">
           <h2>當日球員</h2>

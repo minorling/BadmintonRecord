@@ -1,4 +1,4 @@
-const CACHE_NAME = "badminton-record-v3";
+const CACHE_NAME = "badminton-record-v4";
 const APP_FILES = [
   "./",
   "./index.html",

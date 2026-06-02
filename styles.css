@@ -148,6 +148,42 @@ h2 {
   gap: 8px;
 }
 
+.backup-form {
+  display: grid;
+  grid-template-columns: 1fr 76px;
+  gap: 8px;
+}
+
+.backup-form button {
+  min-height: 46px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 900;
+}
+
+.backup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.backup-actions span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.backup-message {
+  min-height: 20px;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 input,
 select {
   width: 100%;
@@ -395,6 +431,24 @@ select:focus {
   gap: 10px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.match-meta {
+  display: flex;
+  gap: 10px;
+}
+
+.backup-badge {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.backup-badge.synced {
+  color: var(--primary-dark);
+}
+
+.backup-badge.failed {
+  color: var(--danger);
 }
 
 .delete-match {
