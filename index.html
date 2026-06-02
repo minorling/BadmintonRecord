@@ -16,7 +16,7 @@
           <p class="eyebrow">Badminton Record</p>
           <h1>臨打記分</h1>
         </div>
-        <button class="icon-button" id="resetDayButton" type="button" aria-label="清空目前日期資料">重置</button>
+        <button class="icon-button edit-only" id="resetDayButton" type="button" aria-label="清空目前日期資料">重置</button>
       </header>
 
       <section class="date-switcher" aria-label="日期切換">
@@ -36,14 +36,14 @@
 
       <section class="panel backup-panel">
         <div class="panel-title">
-          <h2>Google Sheets 備份</h2>
+          <h2 id="backupPanelTitle">Google Sheets 備份</h2>
           <span id="backupStatus">未設定</span>
         </div>
-        <form class="backup-form" id="backupForm">
+        <form class="backup-form edit-only" id="backupForm">
           <input id="backupUrlInput" type="url" inputmode="url" autocomplete="off" readonly aria-label="固定 Google Sheets 備份網址" />
           <button id="saveBackupUrlButton" type="submit" disabled>固定</button>
         </form>
-        <div class="backup-actions">
+        <div class="backup-actions edit-only">
           <button class="text-button" id="syncAllButton" type="button">同步全部</button>
           <button class="text-button" id="restoreFromSheetsButton" type="button">從 Sheets 載入</button>
           <button class="text-button" id="checkSheetsButton" type="button">檢查 Sheets</button>
@@ -52,7 +52,7 @@
         <p class="backup-message" id="backupMessage" role="status"></p>
       </section>
 
-      <section class="panel">
+      <section class="panel edit-only">
         <div class="panel-title">
           <h2>當日球員</h2>
           <span id="playerCount">0 人</span>
@@ -64,7 +64,7 @@
         <div class="player-list" id="playerList"></div>
       </section>
 
-      <section class="panel score-panel">
+      <section class="panel score-panel edit-only">
         <div class="panel-title">
           <h2>新增比賽</h2>
           <span id="matchCount">第 1 場</span>
@@ -187,6 +187,7 @@
       <button class="player-chip" type="button"></button>
     </template>
 
+    <script src="./config.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

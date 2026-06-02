@@ -28,6 +28,10 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+body.view-mode .edit-only {
+  display: none !important;
+}
+
 button,
 input,
 select {

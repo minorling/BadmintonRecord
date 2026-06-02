@@ -2,6 +2,8 @@ const STORAGE_KEY = "badminton-record:v1";
 const STORAGE_VERSION = 3;
 const DEFAULT_BACKUP_URL =
   "https://script.google.com/macros/s/AKfycbwak1uerNqCRIBpmT6OKqik2JXI3G-pCcoJAlNEZ_x-ExZqHaJaP6zmWEU2iHDjFum-3g/exec";
+const APP_MODE = window.BADMINTON_RECORD_CONFIG?.mode === "view" ? "view" : "edit";
+const IS_VIEW_MODE = APP_MODE === "view";
 let selectedPeriod = "month";
 
 const state = loadState();
@@ -16,6 +18,7 @@ const elements = {
   backupForm: document.querySelector("#backupForm"),
   backupUrlInput: document.querySelector("#backupUrlInput"),
   saveBackupUrlButton: document.querySelector("#saveBackupUrlButton"),
+  backupPanelTitle: document.querySelector("#backupPanelTitle"),
   backupStatus: document.querySelector("#backupStatus"),
   pendingBackupCount: document.querySelector("#pendingBackupCount"),
   backupMessage: document.querySelector("#backupMessage"),
@@ -49,11 +52,13 @@ const elements = {
 
 elements.playerForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (IS_VIEW_MODE) return;
   addPlayer(elements.playerNameInput.value);
 });
 
 elements.matchForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (IS_VIEW_MODE) return;
   addMatch();
 });
 
@@ -84,6 +89,7 @@ elements.backupForm.addEventListener("submit", (event) => {
 });
 
 elements.syncAllButton.addEventListener("click", () => {
+  if (IS_VIEW_MODE) return;
   syncAllPendingMatches();
 });
 
@@ -92,10 +98,12 @@ elements.restoreFromSheetsButton.addEventListener("click", () => {
 });
 
 elements.checkSheetsButton.addEventListener("click", () => {
+  if (IS_VIEW_MODE) return;
   checkSheetsStatus();
 });
 
 elements.resetDayButton.addEventListener("click", () => {
+  if (IS_VIEW_MODE) return;
   if (!confirm(`確定要清空 ${state.selectedDate} 的球員與比賽紀錄嗎？`)) return;
   state.days[state.selectedDate] = createEmptyDay();
   saveState();
@@ -118,9 +126,19 @@ elements.todayButton.addEventListener("click", () => {
   selectDate(getTodayKey());
 });
 
+applyAppMode();
 render();
 registerServiceWorker();
 autoRestoreFromSheets();
+
+function applyAppMode() {
+  document.body.classList.toggle("view-mode", IS_VIEW_MODE);
+  if (!IS_VIEW_MODE) return;
+  document.querySelector("h1").textContent = "臨打戰績";
+  elements.backupPanelTitle.textContent = "資料載入";
+  elements.backupStatus.textContent = "唯讀";
+  elements.backupMessage.textContent = "資料會自動從 Google Sheets 載入。";
+}
 
 function loadState() {
   const today = getTodayKey();
@@ -238,6 +256,7 @@ function selectDate(dateKey) {
 }
 
 function addPlayer(rawName) {
+  if (IS_VIEW_MODE) return;
   const day = currentDay();
   const name = rawName.trim();
   if (!name) return;
@@ -256,6 +275,7 @@ function addPlayer(rawName) {
 }
 
 function addMatch() {
+  if (IS_VIEW_MODE) return;
   const day = currentDay();
   elements.formMessage.textContent = "";
 
@@ -313,6 +333,7 @@ function addMatch() {
 }
 
 function deleteMatch(matchId) {
+  if (IS_VIEW_MODE) return;
   const day = currentDay();
   const match = day.matches.find((item) => item.id === matchId);
   day.matches = day.matches.filter((match) => match.id !== matchId);
@@ -376,10 +397,11 @@ function renderBackupStatus() {
   elements.syncAllButton.disabled = localMatchCount === 0;
   elements.restoreFromSheetsButton.disabled = false;
   elements.checkSheetsButton.disabled = false;
-  elements.backupStatus.textContent = pendingCount === 0 ? "已同步" : "待同步";
+  elements.backupStatus.textContent = IS_VIEW_MODE ? "唯讀" : pendingCount === 0 ? "已同步" : "待同步";
 }
 
 function saveBackupSettings() {
+  if (IS_VIEW_MODE) return;
   state.backup.webAppUrl = DEFAULT_BACKUP_URL;
   saveState();
   renderBackupStatus();
@@ -403,6 +425,7 @@ function renderPlayers() {
 }
 
 function removePlayer(playerId) {
+  if (IS_VIEW_MODE) return;
   const day = currentDay();
   const isUsed = day.matches.some((match) => [...match.teamA, ...match.teamB].includes(playerId));
   if (isUsed) {
@@ -456,10 +479,10 @@ function renderMatches() {
           <span>第 ${matchNumber} 場</span>
           <span class="backup-badge ${backupBadgeClass(match)}">${backupBadgeText(match)}</span>
         </div>
-        <button class="delete-match" type="button">刪除</button>
+        ${IS_VIEW_MODE ? "" : '<button class="delete-match" type="button">刪除</button>'}
       </div>
     `;
-    item.querySelector(".delete-match").addEventListener("click", () => deleteMatch(match.id));
+    item.querySelector(".delete-match")?.addEventListener("click", () => deleteMatch(match.id));
     elements.matchList.append(item);
   });
 }
@@ -683,6 +706,7 @@ function getAllBackupMatches() {
 }
 
 function syncLatestMatch() {
+  if (IS_VIEW_MODE) return;
   const day = currentDay();
   const match = day.matches[day.matches.length - 1];
   if (!match) return;
@@ -690,6 +714,7 @@ function syncLatestMatch() {
 }
 
 async function syncAllPendingMatches() {
+  if (IS_VIEW_MODE) return;
   if (!state.backup.webAppUrl) {
     elements.backupMessage.textContent = "請先設定 Web App URL。";
     return;
@@ -717,6 +742,7 @@ async function syncAllPendingMatches() {
 }
 
 async function syncMatch(date, matchId, options = {}) {
+  if (IS_VIEW_MODE) return false;
   if (!state.backup.webAppUrl) return false;
 
   const day = state.days[date];
@@ -752,6 +778,7 @@ async function syncMatch(date, matchId, options = {}) {
 }
 
 async function syncDeletedMatch(date, match) {
+  if (IS_VIEW_MODE) return;
   if (!state.backup.webAppUrl || match.backupStatus !== "synced") return;
 
   try {

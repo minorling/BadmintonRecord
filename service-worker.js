@@ -1,9 +1,10 @@
-const CACHE_NAME = "badminton-record-v7";
+const CACHE_NAME = "badminton-record-v8";
 const APP_FILES = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./config.js",
   "./manifest.webmanifest",
   "./icon.svg",
 ];
